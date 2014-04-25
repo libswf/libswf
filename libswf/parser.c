@@ -130,10 +130,8 @@ static SWFError parse_swf_compressed_header(SWFParser *parser){
     parser->last_advance = 0;
     SWFError ret = SWF_OK;
     SWF *swf = parser->swf;
-    fprintf(stderr, "BEFORE: %p\n", parser->buf);
     if((ret = parse_swf_rect(parser, &swf->frame_size)) != SWF_OK)
         return ret;
-    fprintf(stderr, "AFTER: %p\n", parser->buf);
     if(parser->buf_size < 4){
         rollback_buf(parser);
         return SWF_NEED_MORE_DATA;
@@ -267,7 +265,6 @@ static SWFError parse_buf_inc(SWFParser *parser){
     case PARSER_FINISHED:
         return SWF_FINISHED;
     default:
-        fprintf(stderr, "BAD STATE\n");
         return SWF_INVALID;
     }
 }
@@ -375,7 +372,6 @@ SWFError swf_parser_append(SWFParser *parser, const uint8_t *buf, size_t len){
             case Z_STREAM_END:
                 return parse_buf(parser);
             case Z_DATA_ERROR:
-                fprintf(stderr, "Z_DATA_ERROR\n");
                 return SWF_INVALID;
             case Z_STREAM_ERROR:
                 return SWF_INTERNAL_ERROR;

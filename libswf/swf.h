@@ -20,7 +20,6 @@
 
 #include <inttypes.h>
 #include <stddef.h>
-#include <stdio.h>
 
 typedef enum {
     SWF_OK = 0,
