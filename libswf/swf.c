@@ -23,7 +23,7 @@ SWF *swf_init(void){
     return calloc(1, sizeof(SWF));
 }
 
-void swf_free_tag(SWFTag *tag){
+void swf_tag_free(SWFTag *tag){
     if(!tag)
         return;
     if(tag->payload){
@@ -38,7 +38,7 @@ void swf_free(SWF *swf){
         return;
     if(swf->tags){
         for(int i = 0; i < swf->nb_tags; i++){
-            swf_free_tag(swf->tags + i);
+            swf_tag_free(swf->tags + i);
         }
         free(swf->tags);
         swf->tags = NULL;

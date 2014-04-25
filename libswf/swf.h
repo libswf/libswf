@@ -151,21 +151,23 @@ typedef struct {
     uint8_t *JPEG_tables;   // JPEG tables used by DefineBits tags
 } SWF;
 
-typedef SWFError (*SWFParserCallback)(SWF*, void*, void*);
+typedef struct SWF_Parser SWFParser;
+
+typedef SWFError (*SWFParserCallback)(SWFParser*, void*, void*);
 
 typedef struct {
     SWFParserCallback tag_cb;
     SWFParserCallback header_cb;
+    SWFParserCallback header2_cb;
     SWFParserCallback end_cb;
     void* priv;
 } SWFParserCallbacks;
-
-typedef struct SWF_Parser SWFParser;
 
 SWFParser* swf_parser_init(void);
 SWFError swf_parser_append(SWFParser *parser, const uint8_t *buf, size_t len);
 SWF* swf_parser_get_swf(SWFParser *parser);
 SWF* swf_init(void);
 void swf_free(SWF *swf);
-void swf_free_tag(SWFTag *tag);
+void swf_tag_free(SWFTag *tag);
 void swf_parser_free(SWFParser *parser);
+void swf_parser_set_callbacks(SWFParser *parser, SWFParserCallbacks *callbacks);

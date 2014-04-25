@@ -19,8 +19,34 @@
 #include <stdio.h>
 #include "libswf/swf.h"
 
+SWFError tag_cb(SWFParser *parser, void *tag_in, void *priv){
+    SWFTag *tag = tag_in;
+    unsigned *i = priv;
+    printf("Tag #%u: Type: %2i; ID: %4x; Size: %"PRIu32"\n", (*i)++, tag->type, tag->id, tag->size);
+    swf_tag_free(tag);
+    return SWF_OK;
+}
+
+SWFError header_cb(SWFParser *parser, void *none, void *priv){
+    SWF *swf = swf_parser_get_swf(parser);
+    char *cmpstr = swf->compression == SWF_ZLIB ? "ZLIB" :
+                  (swf->compression == SWF_LZMA ? "LZMA" : "None");
+    printf("Parsed header. Compression: %s; Version: %i; "
+           "Uncompressed size: %"PRIu32"\n",
+           cmpstr, swf->version, swf->size);
+    return SWF_OK;
+}
+
+SWFError header2_cb(SWFParser *parser, void *none, void *priv){
+    SWF *swf = swf_parser_get_swf(parser);
+    printf("Parsed compressed header. Frame size: %ix%i; "
+           "Frame rate: %"PRIu16"; Frame count: %"PRIu16"\n",
+           swf->frame_size.x_max, swf->frame_size.y_max,
+           swf->frame_rate, swf->frame_count);
+    return SWF_OK;
+}
+
 int main(int argc, char *argv[]){
-    SWFParser *parser = swf_parser_init();
     if(argc < 2){
         fprintf(stderr, "NOT ENOUGH ARGUMENTS\n");
         return 1;
@@ -30,6 +56,16 @@ int main(int argc, char *argv[]){
         fprintf(stderr, "BAD FILE\n");
         return 1;
     }
+    SWFParser *parser = swf_parser_init();
+    unsigned i = 0;
+    SWFParserCallbacks callbacks = {
+        .priv = &i,
+        .tag_cb = tag_cb,
+        .header_cb = header_cb,
+        .header2_cb = header2_cb,
+    };
+    swf_parser_set_callbacks(parser, &callbacks);
+    SWF *swf = swf_parser_get_swf(parser);
     uint8_t data[1024 * 1024];
     while(1){
         size_t read = fread(data, 1, sizeof(data), file);
@@ -50,14 +86,9 @@ int main(int argc, char *argv[]){
             break;
         }
     }
-    SWF *swf = swf_parser_get_swf(parser);
-    printf("File parsed: total tags=%u; uncompressed size=%"PRIu32"\n", swf->nb_tags, swf->size);
-    for(unsigned i = 0; i < swf->nb_tags; i++){
-        SWFTag *tag = swf->tags + i;
-        printf("Tag #%u: Type=%2i; ID=%4x; Size=%"PRIu32"\n", i, tag->type, tag->id, tag->size);
-    }
     swf_free(swf);
     swf_parser_free(parser);
     fclose(file);
+    printf("Finished.\n");
     return 0;
 }

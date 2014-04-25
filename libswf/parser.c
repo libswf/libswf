@@ -106,9 +106,8 @@ static SWFError parse_swf_header(SWFParser *parser){
     swf->size = get_32(parser);
     parser->state = PARSER_HEADER;
     if(parser->callbacks.header_cb){
-        parser->callbacks.header_cb(swf, NULL, parser->callbacks.priv);
+        parser->callbacks.header_cb(parser, NULL, parser->callbacks.priv);
     }
-    parser->state = PARSER_HEADER;
     return setup_decompression(parser);
 }
 
@@ -141,6 +140,9 @@ static SWFError parse_swf_compressed_header(SWFParser *parser){
     swf->frame_rate = get_16(parser);
     swf->frame_count = get_16(parser);
     parser->state = PARSER_BODY;
+    if(parser->callbacks.header2_cb){
+        parser->callbacks.header2_cb(parser, NULL, parser->callbacks.priv);
+    }
     return SWF_OK;
 }
 
@@ -196,7 +198,6 @@ static SWFError parse_id_payload(SWFParser *parser, SWFTag *tag){
 
 static SWFError parse_swf_tag(SWFParser *parser){
     parser->last_advance = 0;
-    SWF *swf = parser->swf;
     if(parser->buf_size < 2)
         return SWF_NEED_MORE_DATA;
     uint16_t code_and_length = get_16(parser);
@@ -242,7 +243,7 @@ static SWFError parse_swf_tag(SWFParser *parser){
         parser->state = PARSER_FINISHED;
         advance_buf(parser, len);
         if(parser->callbacks.end_cb){
-            parser->callbacks.end_cb(swf, NULL, parser->callbacks.priv);
+            parser->callbacks.end_cb(parser, NULL, parser->callbacks.priv);
         }
         break;
     default:
@@ -253,7 +254,7 @@ static SWFError parse_swf_tag(SWFParser *parser){
         break;
     }
     if(parser->callbacks.tag_cb){
-        return parser->callbacks.tag_cb(swf, &tag, parser->callbacks.priv);
+        return parser->callbacks.tag_cb(parser, &tag, parser->callbacks.priv);
     }
     return add_tag(parser, &tag);
 }
@@ -439,4 +440,12 @@ void swf_parser_free(SWFParser *parser){
     if(parser->swf->compression == SWF_ZLIB){
         inflateEnd(&parser->zstrm);
     }
+}
+
+void swf_parser_set_callbacks(SWFParser *parser, SWFParserCallbacks *callbacks){
+    parser->callbacks.tag_cb = callbacks->tag_cb;
+    parser->callbacks.header_cb = callbacks->header_cb;
+    parser->callbacks.header2_cb = callbacks->header2_cb;
+    parser->callbacks.end_cb = callbacks->end_cb;
+    parser->callbacks.priv = callbacks->priv;
 }
