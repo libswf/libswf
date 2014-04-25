@@ -1,0 +1,4 @@
+[submodule "documentation"]
+	path = documentation
+	url = git@github.com:libswf/documentation.git
+	branch = gh-pages
