@@ -30,7 +30,7 @@ int main(int argc, char *argv[]){
         fprintf(stderr, "BAD FILE\n");
         return 1;
     }
-    char data[1024 * 1024];
+    uint8_t data[1024 * 1024];
     unsigned i = 0;
     while(1){
         size_t read = fread(data, 1, sizeof(data), file);

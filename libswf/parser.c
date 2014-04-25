@@ -160,20 +160,29 @@ static SWFError add_tag(SWFParser *parser, SWFTag *tag){
     return SWF_OK;
 }
 
-static SWFError parse_JPEG_tables(SWFParser *parser, SWFTag *tag){
-    SWF *swf = parser->swf;
-}
-
 static SWFError parse_payload(SWFParser *parser, SWFTag *tag){
-    if(!tag->len){
+    if(!tag->size){
         // Short-circuit if the tag was just an ID (probably invalid)
         return SWF_OK;
     }
-    tag->buffer = malloc(tag->len);
-    if(!tag->buffer)
+    tag->payload = malloc(tag->size);
+    if(!tag->payload)
         return SWF_NOMEM;
-    memcpy(tag->payload, parser->buf, tag->len);
-    advance_buf(parser, tag->len);
+    memcpy(tag->payload, parser->buf, tag->size);
+    advance_buf(parser, tag->size);
+    return SWF_OK;
+}
+
+static SWFError parse_JPEG_tables(SWFParser *parser, SWFTag *tag){
+    SWF *swf = parser->swf;
+    SWFError ret = parse_payload(parser, tag);
+    if(ret != SWF_OK)
+        return ret;
+    uint8_t *tables = malloc(tag->size);
+    if(!tables)
+        return SWF_NOMEM;
+    memcpy(tables, tag->payload, tag->size);
+    swf->JPEG_tables = tables;
     return SWF_OK;
 }
 
@@ -181,12 +190,12 @@ static SWFError parse_id_payload(SWFParser *parser, SWFTag *tag){
     // This function handles types that start with a 2-byte ID, then have
     // some complex payload that isn't worth parsing right now.
     tag->id = get_16(parser);
-    tag->len -= 2;
+    tag->size -= 2;
     return parse_payload(parser, tag);
 }
 
 static SWFError parse_swf_tag(SWFParser *parser){
-    swf->last_advance = 0;
+    parser->last_advance = 0;
     SWF *swf = parser->swf;
     if(parser->buf_size < 2)
         return SWF_NEED_MORE_DATA;
@@ -219,11 +228,11 @@ static SWFError parse_swf_tag(SWFParser *parser){
         }
         break;
     case SWF_DEFINE_BITS:
-    case SWF_DEFINE_BITS_JPEG2:
-    case SWF_DEFINE_BITS_JPEG3:
-    case SWF_DEFINE_BITS_JPEG4:
+    case SWF_DEFINE_BITS_JPEG_2:
+    case SWF_DEFINE_BITS_JPEG_3:
+    case SWF_DEFINE_BITS_JPEG_4:
     case SWF_DEFINE_BITS_LOSSLESS:
-    case SWF_DEFINE_BITS_LOSSLESS2:
+    case SWF_DEFINE_BITS_LOSSLESS_2:
         if((ret = parse_id_payload(parser, &tag))){
             rollback_buf(parser);
             return ret;
@@ -348,7 +357,7 @@ SWFError swf_parser_append(SWFParser *parser, const uint8_t *buf, size_t len){
         int increase_space = 0;
         SWFError ret = SWF_OK;
         parser->zstrm.avail_in = len;
-        parser->zstrm.next_in = buf;
+        parser->zstrm.next_in = (uint8_t*)buf;
         do{
             if(parser->buf > parser->buf_ptr){
                 if(parser->buf_size)

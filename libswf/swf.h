@@ -147,6 +147,8 @@ typedef struct {
     SWFRect frame_size;     // Frame size in twips; min_x and min_y are ignored
     uint16_t frame_rate;    // Frame delay in 8.8 fixed-point
     uint16_t frame_count;   // Number of frames in file
+
+    uint8_t *JPEG_tables;   // JPEG tables used by DefineBits tags
 } SWF;
 
 typedef SWFError (*SWFParserCallback)(SWF*, void*, void*);
