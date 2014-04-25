@@ -22,3 +22,33 @@
 SWF *swf_init(void){
     return calloc(1, sizeof(SWF));
 }
+
+void swf_free_tag(SWFTag *tag){
+    if(!tag)
+        return;
+    if(tag->payload){
+        // TODO: Free any deeper data structures if necessary
+        free(tag->payload);
+        tag->payload = NULL;
+    }
+}
+
+void swf_free(SWF *swf){
+    if(!swf)
+        return;
+    if(swf->tags){
+        for(int i = 0; i < swf->nb_tags; i++){
+            swf_free_tag(swf->tags + i);
+        }
+        free(swf->tags);
+        swf->tags = NULL;
+    }
+    if(swf->sprites){
+        free(swf->sprites);
+        swf->sprites = NULL;
+    }
+    if(swf->JPEG_tables){
+        free(swf->JPEG_tables);
+        swf->JPEG_tables = NULL;
+    }
+}

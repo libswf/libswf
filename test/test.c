@@ -31,7 +31,6 @@ int main(int argc, char *argv[]){
         return 1;
     }
     uint8_t data[1024 * 1024];
-    unsigned i = 0;
     while(1){
         size_t read = fread(data, 1, sizeof(data), file);
         if(read == 0){
@@ -43,17 +42,22 @@ int main(int argc, char *argv[]){
             }
             break;
         }
-        i++;
         SWFError ret = swf_parser_append(parser, data, read);
         if(ret < 0){
-            fprintf(stderr, "ERROR: %i %i\n", ret, i);
+            fprintf(stderr, "ERROR: %i\n", ret);
             return 1;
         }else if(ret == SWF_FINISHED){
             break;
         }
     }
     SWF *swf = swf_parser_get_swf(parser);
-    fprintf(stderr, "TAGS: %i; BLOCKS: %i\n", swf->nb_tags, i);
+    printf("File parsed: total tags=%u; uncompressed size=%"PRIu32"\n", swf->nb_tags, swf->size);
+    for(unsigned i = 0; i < swf->nb_tags; i++){
+        SWFTag *tag = swf->tags + i;
+        printf("Tag #%u: Type=%2i; ID=%4x; Size=%"PRIu32"\n", i, tag->type, tag->id, tag->size);
+    }
+    swf_free(swf);
+    swf_parser_free(parser);
     fclose(file);
     return 0;
 }

@@ -29,7 +29,8 @@ typedef enum {
     SWF_UNIMPLEMENTED,
     SWF_UNKNOWN,
     SWF_INTERNAL_ERROR,
-    SWF_NOMEM
+    SWF_NOMEM,
+    SWF_RECOMPILE
 } SWFError;
 
 typedef enum {
@@ -108,7 +109,7 @@ typedef enum {
 
 typedef struct {
     SWFTagType type;
-    size_t size;
+    uint32_t size;
     void *payload;
     uint16_t id;
 } SWFTag;
@@ -129,8 +130,8 @@ typedef struct {
 
 typedef struct {
     SWFTag *tags;           // Pointer to array of Tags
-    int nb_tags;            // Number of SWFTags
-    int max_tags;
+    unsigned nb_tags;       // Number of SWFTags
+    unsigned max_tags;
 
     SWFCompression compression; // What type of compression should we use?
 
@@ -138,8 +139,8 @@ typedef struct {
     // When encoding, it is ignored.
 
     SWFSprite **sprites;    // Pointer to array of Sprite pointers; null if none
-    int num_sprites;        // Number of SWFSprites
-    int version;            // SWF version
+    unsigned num_sprites;   // Number of SWFSprites
+    uint8_t version;        // SWF version
     uint32_t size;          // File length in bytes, decompressed
                             // This is set by the library during both parsing
                             // and writing.
@@ -165,3 +166,6 @@ SWFParser* swf_parser_init(void);
 SWFError swf_parser_append(SWFParser *parser, const uint8_t *buf, size_t len);
 SWF* swf_parser_get_swf(SWFParser *parser);
 SWF* swf_init(void);
+void swf_free(SWF *swf);
+void swf_free_tag(SWFTag *tag);
+void swf_parser_free(SWFParser *parser);

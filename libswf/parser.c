@@ -66,8 +66,8 @@ static SWFError setup_decompression(SWFParser *parser){
     SWF* swf = parser->swf;
     int ret;
     switch(swf->compression){
-#ifdef HAVE_LIBZ
         case SWF_ZLIB:
+#ifdef HAVE_LIBZ
             ret = inflateInit(&parser->zstrm);
             switch(ret){
                 case Z_OK:
@@ -78,6 +78,8 @@ static SWFError setup_decompression(SWFParser *parser){
                 case Z_STREAM_ERROR:
                     return SWF_INTERNAL_ERROR;
             }
+#else
+            return SWF_RECOMPILE;
 #endif
         case SWF_LZMA:
             return SWF_UNIMPLEMENTED;
@@ -424,6 +426,17 @@ SWFParser* swf_parser_init(void){
     return out;
 }
 
-SWF* swf_parser_get_swf(SWFParser* parser){
+SWF* swf_parser_get_swf(SWFParser *parser){
     return parser->swf;
+}
+
+void swf_parser_free(SWFParser *parser){
+    if(parser->buf_ptr){
+        free(parser->buf_ptr);
+        parser->buf_ptr = NULL;
+        parser->buf = NULL;
+    }
+    if(parser->swf->compression == SWF_ZLIB){
+        inflateEnd(&parser->zstrm);
+    }
 }
