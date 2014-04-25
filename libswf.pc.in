@@ -1,0 +1,13 @@
+prefix=@prefix@
+exec_prefix=@exec_prefix@
+libdir=@libdir@
+includedir=@includedir@
+
+Name: libswf
+Description: Shockwave Flash reader/writer library
+Version: @PACKAGE_VERSION@
+Requires: @PKG_REQUIRES_DEFAULT@
+Requires.private: @PKG_REQUIRES_PRIVATE@
+Libs: -L${libdir} -lswf @PKG_LIBS_DEFAULT@
+Libs.private: @PKG_LIBS_PRIVATE@
+Cflags: -I${includedir}
