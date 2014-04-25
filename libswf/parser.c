@@ -237,6 +237,7 @@ static SWFError parse_swf_tag(SWFParser *parser){
             rollback_buf(parser);
             return ret;
         }
+        break;
     case SWF_END:
         parser->state = PARSER_FINISHED;
         advance_buf(parser, len);
@@ -249,6 +250,7 @@ static SWFError parse_swf_tag(SWFParser *parser){
             rollback_buf(parser);
             return ret;
         }
+        break;
     }
     if(parser->callbacks.tag_cb){
         return parser->callbacks.tag_cb(swf, &tag, parser->callbacks.priv);

@@ -10,7 +10,7 @@ lib_LTLIBRARIES = libswf.la
 libswf_la_SOURCES = parser.c parser.h swf.c swf.h internal.h
 
 libswf_la_LDFLAGS = -no-undefined -version-info $(LIBSWF_LT_CURRENT):$(LIBSWF_LT_REVISION):$(LIBSWF_LT_AGE)
-libswf_la_LDFLAGS += -export-symbols $(srcdir)/libswf.sym
+libswf_la_LDFLAGS += -export-symbols-regex swf_.*
 
 swfheadersdir = $(includedir)
 dist_swfheaders_HEADERS = swf.h
