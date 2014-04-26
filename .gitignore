@@ -1,0 +1,15 @@
+autom4te.cache
+aclocal.m4
+Makefile
+Makefile.in
+/config*
+/libtool
+/m4
+.deps
+*.pc
+stamp-h?
+
+*.o
+*~
+*.swp
+
