@@ -12,4 +12,7 @@ stamp-h?
 *.o
 *~
 *.swp
+.libs
+*.lo
+*.la
 
