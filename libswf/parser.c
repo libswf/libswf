@@ -22,44 +22,15 @@
 #include "parser.h"
 #include <stdlib.h>
 #include <string.h>
-
-static inline void advance_buf(SWFParser *parser, int bytes){
-    parser->buf += bytes;
-    parser->buf_size -= bytes;
-    parser->last_advance += bytes;
-}
-
-static inline void rollback_buf(SWFParser *parser){
-    advance_buf(parser, -parser->last_advance);
-}
-
-static inline uint8_t get_8(SWFParser *parser){
-    uint8_t tmp = parser->buf[0];
-    advance_buf(parser, 1);
-    return tmp;
-}
-
-static inline uint16_t get_16(SWFParser *parser){
-    uint16_t tmp = read_16(parser->buf);
-    advance_buf(parser, 2);
-    return tmp;
-}
-
-static inline uint32_t get_32(SWFParser *parser){
-    uint32_t tmp = read_32(parser->buf);
-    advance_buf(parser, 4);
-    return tmp;
-}
+#include <stdio.h>
 
 static inline int check_header(SWFParser *parser){
     SWF *swf = parser->swf;
     return ((swf->compression != SWF_UNCOMPRESSED) &&
-#ifdef HAVE_LIBZ
             (swf->compression != SWF_ZLIB) &&
-#endif
             (swf->compression != SWF_LZMA)) ||
-           get_8(parser) != 'W' ||
-           get_8(parser) != 'S';
+           get_8(&parser->buf) != 'W' ||
+           get_8(&parser->buf) != 'S';
 }
 
 static SWFError setup_decompression(SWFParser *parser){
@@ -68,21 +39,22 @@ static SWFError setup_decompression(SWFParser *parser){
     switch(swf->compression){
         case SWF_ZLIB:
 #ifdef HAVE_LIBZ
-            ret = inflateInit(&parser->zstrm);
-            switch(ret){
+            switch((ret = inflateInit(&parser->zstrm))){
                 case Z_OK:
                     return SWF_OK;
                 case Z_MEM_ERROR:
-                    return SWF_NOMEM;
+                    return set_error(parser, SWF_NOMEM, "setup_decompression: inflateInit returned Z_MEM_ERROR");
                 case Z_VERSION_ERROR:
                 case Z_STREAM_ERROR:
-                    return SWF_INTERNAL_ERROR;
+                    return set_error(parser, SWF_INTERNAL_ERROR, "setup_decompression: inflateInit returned an our-fault error");
+                default:
+                    return set_error(parser, SWF_UNKNOWN, "setup_decompression: inflateInit returned an unknown error");
             }
 #else
-            return SWF_RECOMPILE;
+            return set_error(parser, SWF_RECOMPILE, "setup_decompression: ZLIB compression requires ZLIB");
 #endif
         case SWF_LZMA:
-            return SWF_UNIMPLEMENTED;
+            return set_error(parser, SWF_UNIMPLEMENTED, "setup_decompression: LZMA stuff isn't done yet :/");
             /*
             LzmaDec_Construct(&parser->lzma);
             ret = LzmaDec_Allocate(&parser->lzma, header, LZMA_PROPS_SIZE, &g_Alloc);
@@ -94,67 +66,65 @@ static SWFError setup_decompression(SWFParser *parser){
 }
 
 static SWFError parse_swf_header(SWFParser *parser){
-    if(parser->buf_size < 8){
+    if(parser->buf.size < 8){
         return SWF_NEED_MORE_DATA;
     }
     SWF* swf = parser->swf;
 
-    swf->compression = get_8(parser);
+    swf->compression = get_8(&parser->buf);
     if(check_header(parser))
-        return SWF_INVALID;
-    swf->version = get_8(parser);
-    swf->size = get_32(parser);
+        return set_error(parser, SWF_INVALID, "parse_swf_header: check_header reported an invalid header");
+    swf->version = get_8(&parser->buf);
+    swf->size = get_32(&parser->buf);
     parser->state = PARSER_HEADER;
     if(parser->callbacks.header_cb){
-        parser->callbacks.header_cb(parser, NULL, parser->callbacks.priv);
+        parser->callbacks.header_cb(parser, NULL, parser->callbacks.ctx);
     }
     return setup_decompression(parser);
 }
 
 static SWFError parse_swf_rect(SWFParser *parser, SWFRect* rect){
-    SWFBitPointer ptr = init_bit_pointer(parser->buf, 0);
-    if(parser->buf_size < 1)
+    Buffer *buf = &parser->buf;
+    if(buf->size < 1)
         return SWF_NEED_MORE_DATA;
-    int size = get_bits(&ptr, 5),
-        total_size = (size * 4 + 5 + 7) >> 3;
-    if(parser->buf_size < total_size)
+    int size = buf_get_bits(buf, 5);
+    if(buf->size < (size * 4 + 5 + 7) >> 3)
         return SWF_NEED_MORE_DATA;
-    rect->x_min = get_sbits(&ptr, size);
-    rect->x_max = get_sbits(&ptr, size);
-    rect->y_min = get_sbits(&ptr, size);
-    rect->y_max = get_sbits(&ptr, size);
-    advance_buf(parser, total_size);
+    rect->x_min = buf_get_sbits(buf, size);
+    rect->x_max = buf_get_sbits(buf, size);
+    rect->y_min = buf_get_sbits(buf, size);
+    rect->y_max = buf_get_sbits(buf, size);
+    buf_finish_bit_access(buf);
     return SWF_OK;
 }
 
-static SWFError parse_swf_compressed_header(SWFParser *parser){
-    parser->last_advance = 0;
+static SWFError parse_compressed_header(SWFParser *parser){
+    buf_clear_rollback(&parser->buf);
     SWFError ret = SWF_OK;
     SWF *swf = parser->swf;
     if((ret = parse_swf_rect(parser, &swf->frame_size)) != SWF_OK)
         return ret;
-    if(parser->buf_size < 4){
-        rollback_buf(parser);
+    if(parser->buf.size < 4){
+        buf_rollback(&parser->buf);
         return SWF_NEED_MORE_DATA;
     }
-    swf->frame_rate = get_16(parser);
-    swf->frame_count = get_16(parser);
+    swf->frame_rate = get_16(&parser->buf);
+    swf->frame_count = get_16(&parser->buf);
     parser->state = PARSER_BODY;
     if(parser->callbacks.header2_cb){
-        parser->callbacks.header2_cb(parser, NULL, parser->callbacks.priv);
+        parser->callbacks.header2_cb(parser, NULL, parser->callbacks.ctx);
     }
     return SWF_OK;
 }
 
-static SWFError add_tag(SWFParser *parser, SWFTag *tag){
-    SWF *swf = parser->swf;
+SWFError swf_add_tag(SWF *swf, SWFTag *tag){
     if(swf->nb_tags == swf->max_tags){
         if(swf->max_tags == 0){
             swf->max_tags = 16;
         }
         SWFTag *new_tags = realloc(swf->tags, swf->max_tags * 2 * sizeof(SWFTag));
         if(!new_tags)
-            return SWF_NOMEM;
+            return set_error(swf, SWF_NOMEM, "swf_add_tag: Not enough memory to expand SWFTag array");
         swf->max_tags *= 2;
         swf->tags = new_tags;
     }
@@ -163,15 +133,14 @@ static SWFError add_tag(SWFParser *parser, SWFTag *tag){
 }
 
 static SWFError parse_payload(SWFParser *parser, SWFTag *tag){
-    if(!tag->size){
+    if(!tag->size)
         // Short-circuit if the tag was just an ID (probably invalid)
         return SWF_OK;
-    }
     tag->payload = malloc(tag->size);
     if(!tag->payload)
-        return SWF_NOMEM;
-    memcpy(tag->payload, parser->buf, tag->size);
-    advance_buf(parser, tag->size);
+        return set_error(parser, SWF_NOMEM, "parse_payload: malloc failed");
+    memcpy(tag->payload, parser->buf.ptr, tag->size);
+    buf_advance(&parser->buf, tag->size);
     return SWF_OK;
 }
 
@@ -182,7 +151,7 @@ static SWFError parse_JPEG_tables(SWFParser *parser, SWFTag *tag){
         return ret;
     uint8_t *tables = malloc(tag->size);
     if(!tables)
-        return SWF_NOMEM;
+        return set_error(parser, SWF_NOMEM, "parse_JPEG_tables: malloc failed");
     memcpy(tables, tag->payload, tag->size);
     swf->JPEG_tables = tables;
     return SWF_OK;
@@ -191,26 +160,26 @@ static SWFError parse_JPEG_tables(SWFParser *parser, SWFTag *tag){
 static SWFError parse_id_payload(SWFParser *parser, SWFTag *tag){
     // This function handles types that start with a 2-byte ID, then have
     // some complex payload that isn't worth parsing right now.
-    tag->id = get_16(parser);
+    tag->id = get_16(&parser->buf);
     tag->size -= 2;
     return parse_payload(parser, tag);
 }
 
-static SWFError parse_swf_tag(SWFParser *parser){
-    parser->last_advance = 0;
-    if(parser->buf_size < 2)
+static SWFError parse_tag(SWFParser *parser){
+   buf_clear_rollback(&parser->buf);
+    if(parser->buf.size < 2)
         return SWF_NEED_MORE_DATA;
-    uint16_t code_and_length = get_16(parser);
+    uint16_t code_and_length = get_16(&parser->buf);
     uint32_t len = code_and_length & 0x3F;
     uint16_t code = code_and_length >> 6;
-    if(parser->buf_size < len){
-        rollback_buf(parser);
+    if(parser->buf.size < len){
+        buf_rollback(&parser->buf);
         return SWF_NEED_MORE_DATA;
     }
     if(len == 0x3F){
-        len = get_32(parser);
-        if(len > parser->buf_size){
-            rollback_buf(parser);
+        len = get_32(&parser->buf);
+        if(len > parser->buf.size){
+            buf_rollback(&parser->buf);
             return SWF_NEED_MORE_DATA;
         }
     }
@@ -224,7 +193,7 @@ static SWFError parse_swf_tag(SWFParser *parser){
     switch(code){
     case SWF_JPEG_TABLES:
         if((ret = parse_JPEG_tables(parser, &tag))){
-            rollback_buf(parser);
+            buf_rollback(&parser->buf);
             return ret;
         }
         break;
@@ -235,40 +204,40 @@ static SWFError parse_swf_tag(SWFParser *parser){
     case SWF_DEFINE_BITS_LOSSLESS:
     case SWF_DEFINE_BITS_LOSSLESS_2:
         if((ret = parse_id_payload(parser, &tag))){
-            rollback_buf(parser);
+            buf_rollback(&parser->buf);
             return ret;
         }
         break;
     case SWF_END:
         parser->state = PARSER_FINISHED;
-        advance_buf(parser, len);
+        buf_advance(&parser->buf, len);
         if(parser->callbacks.end_cb){
-            parser->callbacks.end_cb(parser, NULL, parser->callbacks.priv);
+            parser->callbacks.end_cb(parser, NULL, parser->callbacks.ctx);
         }
-        break;
+        return SWF_FINISHED;
     default:
         if((ret = parse_payload(parser, &tag))){
-            rollback_buf(parser);
+            buf_rollback(&parser->buf);
             return ret;
         }
         break;
     }
     if(parser->callbacks.tag_cb){
-        return parser->callbacks.tag_cb(parser, &tag, parser->callbacks.priv);
+        return parser->callbacks.tag_cb(parser, &tag, parser->callbacks.ctx);
     }
-    return add_tag(parser, &tag);
+    return copy_error(parser, parser->swf, swf_add_tag(parser->swf, &tag));
 }
 
 static SWFError parse_buf_inc(SWFParser *parser){
     switch(parser->state){
     case PARSER_HEADER:
-        return parse_swf_compressed_header(parser);
+        return parse_compressed_header(parser);
     case PARSER_BODY:
-        return parse_swf_tag(parser);
+        return parse_tag(parser);
     case PARSER_FINISHED:
         return SWF_FINISHED;
     default:
-        return SWF_INVALID;
+        return set_error(parser, SWF_INVALID, "parse_buf_inc: Invalid SWFParser->state");
     }
 }
 
@@ -287,119 +256,72 @@ static SWFError parse_buf(SWFParser *parser){
 
 SWFError swf_parser_append(SWFParser *parser, const uint8_t *buf, size_t len){
     SWF *swf = parser->swf;
+    SWFError ret = SWF_OK;
     if(parser->state == PARSER_STARTED){
-        if(!parser->buf_ptr){
-            parser->buf_ptr = parser->buf = malloc(8);
-            parser->buf_size_total = 8;
-            parser->buf_size = 0;
-        }
         // This is a really stupid setup to make sure we don't crash
         // if the first few packets are <8 bytes
-        uint8_t bytes_left = 8 - parser->buf_size;
+        uint8_t bytes_left = 8 - parser->buf.size;
         bytes_left = bytes_left > 8 ? 8 : bytes_left;
         bytes_left = len < bytes_left ? len : bytes_left;
-        memcpy(parser->buf + parser->buf_size, buf, bytes_left);
-        parser->buf_size += bytes_left;
-        if(parser->buf_size < 8)
+        if(!parser->buf.alloc_ptr &&
+           (ret = buf_init_with_data(&parser->buf, buf, bytes_left)))
+            return copy_error(parser, &parser->buf, ret);
+        if(parser->buf.size < 8)
             return SWF_OK;
-        SWFError ret = parse_swf_header(parser);
+        ret = parse_swf_header(parser);
         if(ret != SWF_OK)
             return ret;
+        // This buf is really tiny, and probably not worth keeping
+        buf_free(&parser->buf);
         buf += bytes_left;
         len -= bytes_left;
-        free(parser->buf_ptr);
-        parser->buf_ptr = parser->buf = NULL;
-        parser->buf_size = parser->buf_size_total = 0;
+        // Fall through to the post-header parsing stage
     }
     switch(swf->compression){
     case SWF_UNCOMPRESSED:
-        if(!parser->buf_ptr){
-            // No buffer yet. Allocate one, and fill it.
-            parser->buf = parser->buf_ptr = malloc(len);
-            if(!parser->buf_ptr)
-                return SWF_NOMEM;
-            parser->buf_size = parser->buf_size_total = len;
-            memcpy(parser->buf, buf, len);
-            return parse_buf(parser);
-        }
-        uint8_t *end = parser->buf_ptr + parser->buf_size_total;
-        if(parser->buf + parser->buf_size + len < end){
-            // We have a buffer, and our new data fits in the free space.
-            memcpy(parser->buf + parser->buf_size, buf, len);
-            parser->buf_size += len;
-            return parse_buf(parser);
-        }
-        if(parser->buf_ptr + parser->buf_size + len < end){
-            // We have a buffer, and our new data will fit after shuffling.
-            memmove(parser->buf_ptr, parser->buf, parser->buf_size);
-            parser->buf = parser->buf_ptr;
-            memcpy(parser->buf + parser->buf_size, buf, len);
-            parser->buf_size += len;
-            return parse_buf(parser);
-        }
-        // We have a buffer, but it's not big enough. Allocate a new one.
-        uint8_t *new_buf = malloc(parser->buf_size + len);
-        if(!new_buf)
-            return SWF_NOMEM;
-        memcpy(new_buf, parser->buf, parser->buf_size);
-        memcpy(new_buf + parser->buf_size, buf, len);
-        free(parser->buf_ptr);
-        parser->buf_size_total = parser->buf_size += len;
-        parser->buf_ptr = parser->buf = new_buf;
+        if((ret = buf_append(&parser->buf, buf, len)))
+            return copy_error(parser, &parser->buf, ret);
         return parse_buf(parser);
     case SWF_ZLIB:
-        if(!parser->buf_ptr){
+        if(!parser->buf.alloc_ptr)
             // No buffer yet. Allocate one, wild-guessing at the size
-            parser->buf = parser->buf_ptr = malloc(len * 4);
-            if(!parser->buf_ptr)
-                return SWF_NOMEM;
-            parser->buf_size_total = len * 4;
-            parser->buf_size = 0;
-        }
+            if((ret = buf_init(&parser->buf, len * 4)))
+                return copy_error(parser, &parser->buf, ret);
         int increase_space = 0;
-        SWFError ret = SWF_OK;
         parser->zstrm.avail_in = len;
         parser->zstrm.next_in = (uint8_t*)buf;
-        do{
-            if(parser->buf > parser->buf_ptr){
-                if(parser->buf_size)
-                    memmove(parser->buf_ptr, parser->buf, parser->buf_size);
-                parser->buf = parser->buf_ptr;
-            }
-            size_t avail_size = parser->buf_size_total - parser->buf_size;
+        for(;;){
+            size_t avail_size = buf_shift(&parser->buf);
             parser->zstrm.avail_out = avail_size;
-            parser->zstrm.next_out = parser->buf + parser->buf_size;
+            parser->zstrm.next_out = parser->buf.ptr + parser->buf.size;
             int z_ret = inflate(&parser->zstrm, Z_NO_FLUSH);
-            parser->buf_size += (avail_size - parser->zstrm.avail_out);
+            parser->buf.size += (avail_size - parser->zstrm.avail_out);
             switch(z_ret){
             case Z_STREAM_END:
                 return parse_buf(parser);
             case Z_DATA_ERROR:
+                return set_error(parser, SWF_INVALID, "swf_parser_append: inflate() returned Z_DATA_ERROR");
                 return SWF_INVALID;
             case Z_STREAM_ERROR:
-                return SWF_INTERNAL_ERROR;
+                return set_error(parser, SWF_INTERNAL_ERROR, "swf_parser_append: inflate() returned Z_STREAM_ERROR");
             case Z_MEM_ERROR:
-                return SWF_NOMEM;
+                return set_error(parser, SWF_NOMEM, "swf_parser_append: inflate() returned Z_MEM_ERROR");
             case Z_BUF_ERROR:
                 increase_space = 1;
             case Z_OK:
                 // Continue looping
                 break;
             default:
-                return SWF_UNKNOWN;
+                return set_error(parser, SWF_UNKNOWN, "swf_parser_append: inflate() returned an unknown error");
             }
-            switch(parse_buf(parser)){
+            switch((ret = parse_buf(parser))){
             case SWF_OK:
                 break;
             case SWF_NEED_MORE_DATA:
                 if(increase_space){
-                    uint8_t *new_buf = malloc(parser->buf_size_total * 2);
-                    if(!new_buf)
-                        return SWF_NOMEM;
-                    parser->buf_size_total *= 2;
-                    memcpy(new_buf, parser->buf, parser->buf_size);
-                    free(parser->buf_ptr);
-                    parser->buf = parser->buf_ptr = new_buf;
+                    if((ret = buf_grow(&parser->buf, 2))){
+                        return copy_error(parser, &parser->buf, ret);
+                    }
                     increase_space = 0;
                     continue;
                 }
@@ -409,9 +331,9 @@ SWFError swf_parser_append(SWFParser *parser, const uint8_t *buf, size_t len){
             if(!parser->zstrm.avail_in){
                 return ret;
             }
-        }while(1);
+        }
     default:
-        return SWF_UNIMPLEMENTED;
+        return set_error(parser, SWF_UNIMPLEMENTED, "swf_parser_append: inflate() returned an unknown error");
     }
 }
 
@@ -431,15 +353,16 @@ SWF* swf_parser_get_swf(SWFParser *parser){
     return parser->swf;
 }
 
+SWFErrorDesc *swf_parser_get_error(SWFParser *parser){
+    return &parser->err;
+}
+
 void swf_parser_free(SWFParser *parser){
-    if(parser->buf_ptr){
-        free(parser->buf_ptr);
-        parser->buf_ptr = NULL;
-        parser->buf = NULL;
-    }
+    buf_free(&parser->buf);
     if(parser->swf->compression == SWF_ZLIB){
         inflateEnd(&parser->zstrm);
     }
+    free(parser);
 }
 
 void swf_parser_set_callbacks(SWFParser *parser, SWFParserCallbacks *callbacks){
@@ -447,5 +370,5 @@ void swf_parser_set_callbacks(SWFParser *parser, SWFParserCallbacks *callbacks){
     parser->callbacks.header_cb = callbacks->header_cb;
     parser->callbacks.header2_cb = callbacks->header2_cb;
     parser->callbacks.end_cb = callbacks->end_cb;
-    parser->callbacks.priv = callbacks->priv;
+    parser->callbacks.ctx = callbacks->ctx;
 }

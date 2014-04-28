@@ -43,12 +43,9 @@ void swf_free(SWF *swf){
         free(swf->tags);
         swf->tags = NULL;
     }
-    if(swf->sprites){
-        free(swf->sprites);
-        swf->sprites = NULL;
-    }
     if(swf->JPEG_tables){
         free(swf->JPEG_tables);
         swf->JPEG_tables = NULL;
     }
+    free(swf);
 }

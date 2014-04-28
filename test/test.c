@@ -19,15 +19,15 @@
 #include <stdio.h>
 #include "libswf/swf.h"
 
-SWFError tag_cb(SWFParser *parser, void *tag_in, void *priv){
+SWFError tag_cb(SWFParser *parser, void *tag_in, void *ctx){
     SWFTag *tag = tag_in;
-    unsigned *i = priv;
+    unsigned *i = ctx;
     printf("Tag #%u: Type: %2i; ID: %4x; Size: %"PRIu32"\n", (*i)++, tag->type, tag->id, tag->size);
     swf_tag_free(tag);
     return SWF_OK;
 }
 
-SWFError header_cb(SWFParser *parser, void *none, void *priv){
+SWFError header_cb(SWFParser *parser, void *none, void *ctx){
     SWF *swf = swf_parser_get_swf(parser);
     char *cmpstr = swf->compression == SWF_ZLIB ? "ZLIB" :
                   (swf->compression == SWF_LZMA ? "LZMA" : "None");
@@ -37,7 +37,7 @@ SWFError header_cb(SWFParser *parser, void *none, void *priv){
     return SWF_OK;
 }
 
-SWFError header2_cb(SWFParser *parser, void *none, void *priv){
+SWFError header2_cb(SWFParser *parser, void *none, void *ctx){
     SWF *swf = swf_parser_get_swf(parser);
     printf("Parsed compressed header. Frame size: %ix%i; "
            "Frame rate: %"PRIu16"; Frame count: %"PRIu16"\n",
@@ -59,7 +59,7 @@ int main(int argc, char *argv[]){
     SWFParser *parser = swf_parser_init();
     unsigned i = 0;
     SWFParserCallbacks callbacks = {
-        .priv = &i,
+        .ctx = &i,
         .tag_cb = tag_cb,
         .header_cb = header_cb,
         .header2_cb = header2_cb,
@@ -80,7 +80,8 @@ int main(int argc, char *argv[]){
         }
         SWFError ret = swf_parser_append(parser, data, read);
         if(ret < 0){
-            fprintf(stderr, "ERROR: %i\n", ret);
+            SWFErrorDesc *swferr = swf_parser_get_error(parser);
+            fprintf(stderr, "ERROR: %i: %s\n", ret, swferr->text);
             return 1;
         }else if(ret == SWF_FINISHED){
             break;

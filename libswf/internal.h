@@ -21,43 +21,20 @@
 #include <assert.h>
 #include "swf.h"
 
-typedef struct {
-    uint8_t *buf;
-    int index;
-} SWFBitPointer;
+static inline SWFError set_error(void *parent, SWFError err, const char *text){
+    SWFErrorDesc *desc = ((SWFErrorDesc*)parent);
+    desc->code = err;
+    desc->text = text;
+    return err;
+}
 
-static inline uint64_t get_bits(SWFBitPointer *ptr, unsigned nb_bits){
-    uint64_t tmp = 0;
-    assert(nb_bits <= 56);
-    if(nb_bits == 0)
-        return 0;
-    unsigned bytes = ptr->index >> 3,
-             bits = ptr->index & 7,
-             read_bytes = (nb_bits >> 3) + 2,
-             inv_read = 8 - read_bytes;
-    for(unsigned i = 7; i >= inv_read; --i){
-        if(i == inv_read && (nb_bits & 7) <= 8 - bits)
-            break;
-        tmp |= (int64_t)ptr->buf[bytes++] << (i << 3);
+static inline SWFError copy_error(void *parent, void *child, SWFError err){
+    if(err < 0){
+        SWFErrorDesc *desc = ((SWFErrorDesc*)parent), *desc2 = ((SWFErrorDesc*)child);
+        desc->code = desc2->code;
+        desc->text = desc2->text;
     }
-
-    ptr->index += nb_bits;
-
-    return (tmp << bits) >> (64 - nb_bits);
-}
-
-static inline int64_t get_sbits(SWFBitPointer *ptr, int nb_bits){
-    uint64_t tmp = get_bits(ptr, nb_bits);
-    if(tmp >> (nb_bits - 1))
-        tmp |= (0xFFFFFFFFFFFFFFFF >> nb_bits) << nb_bits;
-    return (int64_t)tmp;
-}
-
-static inline SWFBitPointer init_bit_pointer(uint8_t *buf, int index){
-    return (SWFBitPointer){
-        .buf = buf,
-        .index = index
-    };
+    return err;
 }
 
 static inline uint16_t read_16(uint8_t *buf){
@@ -126,15 +103,15 @@ static inline uint16_t float_to_half(float fl)
     return o;
 }
 
-static inline float read_float(uint8_t *buf){
+static inline float read_float(char *buf){
     return *((float*)buf);
 }
 
-static inline float read_float16(uint8_t *buf){
+static inline float read_float16(char *buf){
     int16_t tmp = buf[0] << 8 & buf[1];
     return half_to_float(tmp);
 }
 
-static inline double read_double(uint8_t *buf){
+static inline double read_double(char *buf){
     return *((double*)buf);
 }

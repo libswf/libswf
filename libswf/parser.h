@@ -20,30 +20,33 @@
 
 #include "swf.h"
 #include "lzma/LzmaDec.h"
+#include "buffer.h"
 
 #ifdef HAVE_LIBZ
 #include <zlib.h>
 #endif
 
+/**
+ * \brief Current state of an SWF parser
+ */
 typedef enum {
-    PARSER_STARTED,     // Reading uncompressed portion of header
-    PARSER_HEADER,      // Reading compressed portion of header
-    PARSER_BODY,        // Reading body data
-    PARSER_FINISHED,    // Read an END tag; finished
+    PARSER_STARTED,     ///< Reading uncompressed portion of header
+    PARSER_HEADER,      ///< Reading compressed portion of header
+    PARSER_BODY,        ///< Reading body data
+    PARSER_FINISHED,    ///< Read an END tag; finished
 } SWFParserState;
 
+/**
+ * \brief Private data used when parsing an SWF file
+ */
 struct SWF_Parser {
-    SWFError err;           // Set if we've encountered an error
-    SWFParserState state;
-    SWF *swf;               // SWF struct being decoded to
-    uint8_t *buf;           // Used temporarily; does NOT store the entire SWF
-    uint8_t *buf_ptr;
-    size_t buf_size;
-    size_t buf_size_total;
-    int last_advance;
-    SWFParserCallbacks callbacks;
+    SWFErrorDesc err;       ///< Last error that occurred on this SWFParser
+    SWFParserState state;   ///< Current state of parser
+    SWF *swf;               ///< SWF being decoded to
+    Buffer buf;             ///< Temporary buffer for uncompressed data
+    SWFParserCallbacks callbacks; ///< User-provided callbacks
     union {
-        CLzmaDec lzma;
-        z_stream zstrm;
+        CLzmaDec lzma;      ///< LZMA decoder struct
+        z_stream zstrm;     ///< Zlib decoder struct
     };
 };

@@ -16,25 +16,56 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
+/**
+ * \file
+ * Defines all externally-accessible types and functions for libswf
+ * \publicsection
+ */
+
+/**
+ * \mainpage
+ * \ref swf.h You probably want the main header
+ */
+
 #pragma once
 
 #include <inttypes.h>
 #include <stddef.h>
 
+/**
+ * \brief Errors and other return values from libswf functions.
+ * 0 is a simple "OK", values >0 are non-failures that include additional
+ * information, and values <0 are failures.
+ */
 typedef enum {
-    SWF_OK = 0,
-    SWF_NEED_MORE_DATA = 1,
-    SWF_FINISHED = 2,
-    SWF_INVALID = -127,
-    SWF_UNIMPLEMENTED,
-    SWF_UNKNOWN,
-    SWF_INTERNAL_ERROR,
-    SWF_NOMEM,
-    SWF_RECOMPILE
+    SWF_OK = 0,             ///< Success; nothing special to report
+    SWF_NEED_MORE_DATA = 1, ///< More data is required to finish an attempted operation
+    SWF_FINISHED = 2,       ///< We're completely finished with a multi-call operation
+    SWF_INVALID = -127,     ///< Invalid data was provided
+    SWF_UNIMPLEMENTED,      ///< A feature you're trying to use is unimplemented
+    SWF_UNKNOWN,            ///< Some error occurred, and we're not sure of the specifics
+    SWF_INTERNAL_ERROR,     ///< This means there's a bug in libswf. Patches welcome.
+    SWF_NOMEM,              ///< Not enough memory was available to complete the operation.
+                            ///< You should be able to retry the operation after freeing some.
+    SWF_RECOMPILE           ///< You attempted to use a feature that requires an external
+                            ///< library that this libswf was not built with.
 } SWFError;
 
+/**
+ * \brief Description of the last error that occurred within a SWF, SWFParser, or SWFWriter
+ */
+typedef struct {
+    SWFError code;      ///< SWFError code
+    const char *text;   ///< Static string with a human-readable error description
+                        /// MUST NOT be free'd
+} SWFErrorDesc;
+
+/**
+ * \brief SWF tag types
+ * \see http://wwwimages.adobe.com/www.adobe.com/content/dam/Adobe/en/devnet/swf/pdf/swf-file-format-spec.pdf
+ */
 typedef enum {
-    SWF_END                     = 0,
+    SWF_END                     = 0, ///< This tag must end every SWF file. We stop parsing when we see it.
     SWF_SHOW_FRAME              = 1,
     SWF_DEFINE_SHAPE            = 2,
     SWF_PLACE_OBJECT            = 4,
@@ -101,26 +132,43 @@ typedef enum {
     SWF_ENABLE_TELEMETRY        = 93
 } SWFTagType;
 
+/**
+ * \brief Compression methods used in SWF files.
+ * The first 8 bytes of every SWF file are always uncompressed. The first 3
+ * are a signature, and the first byte is an ASCII character representing the
+ * compression type used by the rest of the file.
+ * \see http://wwwimages.adobe.com/www.adobe.com/content/dam/Adobe/en/devnet/swf/pdf/swf-file-format-spec.pdf
+ */
 typedef enum {
-    SWF_UNCOMPRESSED    = 'F',
-    SWF_ZLIB            = 'C',
-    SWF_LZMA            = 'Z'
+    SWF_UNCOMPRESSED    = 'F', ///< No compression.
+    SWF_ZLIB            = 'C', ///< Zlib DEFLATE compression (requires zlib).
+    SWF_LZMA            = 'Z', ///< LZMA compression (builtin to libswf).
 } SWFCompression;
 
+/**
+ * \brief SWF tag structure
+ */
 typedef struct {
-    SWFTagType type;
-    uint32_t size;
-    void *payload;
-    uint16_t id;
+    SWFTagType type;    ///< Tag type
+    uint32_t size;      ///< Size of payload (NOT  the total size of the tag in-file)
+    uint8_t *payload;   ///< Pointer to a buffer containing the contents of the tag
+    uint16_t id;        ///< 16-bit ID pulled from tag; 0 indicates no ID. This
+                        ///< value is not included in the payload.
 } SWFTag;
 
+/**
+ * \brief Parsed SWF sprite
+ */
 typedef struct {
-    uint16_t id;
-    uint16_t frame_count;
-    SWFTag* tags;
-    int nb_tags;
+    uint16_t frame_count;   ///< Number of frames in sprite
+    SWFTag* tags;           ///< Pointer to array of sub-tags
+    unsigned nb_tags;       ///< Number of SWFTags
+    unsigned max_tags;      ///< Number of tags that can fit in the space allocated
 } SWFSprite;
 
+/**
+ * \brief Parsed SWF rectangle
+ */
 typedef struct {
     int32_t x_min;
     int32_t x_max;
@@ -128,46 +176,126 @@ typedef struct {
     int32_t y_max;
 } SWFRect;
 
+/**
+ * \brief SWF data, either parsed from a file or to be written to one
+ */
 typedef struct {
-    SWFTag *tags;           // Pointer to array of Tags
-    unsigned nb_tags;       // Number of SWFTags
-    unsigned max_tags;
+    SWFErrorDesc err;       ///< Last error that occurred on this SWF
+    SWFTag *tags;           ///< Pointer to array of Tags.
+                            ///< This should be considered read-only to the user.
+    unsigned nb_tags;       ///< Number of SWFTags
+                            ///< This should be considered read-only to the user.
+    unsigned max_tags;      ///< \protected Number of tags that can fit in the space allocated
 
-    SWFCompression compression; // What type of compression should we use?
+    SWFCompression compression; ///< Type of compression used in file.
+                                ///< For input, this is set by the parser, and MUST NOT
+                                ///< be changed. For output, this is set by the consumer,
+                                ///< and 0 is taken to mean "best available for this SWF version".
+    uint8_t version;        ///< SWF version. Defaults to latest if not set when writing.
+    uint32_t size;          ///< File length in bytes, decompressed. Read-only.
+                            ///< This is set by the library during both parsing
+                            ///< and writing.
+    SWFRect frame_size;     ///< Frame size in twips; min_x and min_y are ignored.
+    uint16_t frame_rate;    ///< Frame delay in 8.8 fixed-point
+    uint16_t frame_count;   ///< Number of frames in file
 
-    // Sprite data is provided for convenience when decoding.
-    // When encoding, it is ignored.
-
-    SWFSprite **sprites;    // Pointer to array of Sprite pointers; null if none
-    unsigned num_sprites;   // Number of SWFSprites
-    uint8_t version;        // SWF version
-    uint32_t size;          // File length in bytes, decompressed
-                            // This is set by the library during both parsing
-                            // and writing.
-    SWFRect frame_size;     // Frame size in twips; min_x and min_y are ignored
-    uint16_t frame_rate;    // Frame delay in 8.8 fixed-point
-    uint16_t frame_count;   // Number of frames in file
-
-    uint8_t *JPEG_tables;   // JPEG tables used by DefineBits tags
+    uint8_t *JPEG_tables;   ///< \protected JPEG tables used by DefineBits tags.
+                            ///< This MUST be set before attempting to write a DefineBits.
 } SWF;
 
+/**
+ * \brief Opaque struct containing data used by the SWF parser.
+ */
 typedef struct SWF_Parser SWFParser;
 
-typedef SWFError (*SWFParserCallback)(SWFParser*, void*, void*);
+/**
+ * \brief Function prototype used by callbacks
+ * \param[in] parser SWF Parser in use
+ * \param[in] data   Data relevant to callback; cast to whichever type it should be
+ * \param[in] ctx    SWFParserCallbacks->ctx
+ * \return    SWFError indicating if something went wrong (often ignored).
+ */
+typedef SWFError (*SWFParserCallback)(SWFParser *parser, void *data, void *ctx);
 
+/**
+ * \brief Callbacks used by the SWF parser.
+ */
 typedef struct {
-    SWFParserCallback tag_cb;
-    SWFParserCallback header_cb;
-    SWFParserCallback header2_cb;
-    SWFParserCallback end_cb;
-    void* priv;
+    SWFParserCallback tag_cb;       ///< Called when a tag is parsed. data=SWFTag*
+                                    ///< If this callback is provided, the SWFTag
+                                    ///< will not be added to swf->tags unless the
+                                    ///< user calls swf_add_tag(swf, data), and
+                                    ///< if swf_add_tag is not called, the user
+                                    ///< is responsible for calling swf_tag_free.
+                                    ///< This callback is not called for END tags.
+    SWFParserCallback header_cb;    ///< Called when the uncompressed header is parsed. data=NULL
+    SWFParserCallback header2_cb;   ///< Called when the compressed header is parsed. data=NULL
+    SWFParserCallback end_cb;       ///< Called when an END tag is parsed.
+                                    ///< No additional tags are parsed after this.
+    void* ctx;                      ///< User-provided pointer, passed as the
+                                    ///< third argument to all callbacks.
 } SWFParserCallbacks;
 
+/**
+ * \brief Allocates an SWFParser and accompanying SWF.
+ * \return Pointer if the parser and SWF could be allocated; NULL otherwise.
+ */
 SWFParser* swf_parser_init(void);
+/**
+ * \brief Appends data to the parser's buffer.
+ * The data provided will be decompressed if necessary, and the parser will
+ * parse as many tags from the file as possible.
+ * \param[in] parser SWFParser to append to
+ * \param[in] buf    Buffer to parse
+ * \param[in] len    Size of buf
+ * \return SWF_OK if at least one tag could be parsed.
+ * SWF_NEED_MORE_DATA if no tags could be parsed because buf wasn't long enough.
+ * SWF_FINISHED if an END tag has been parsed.
+ * SWFError < 0 if something went wrong.
+ */
 SWFError swf_parser_append(SWFParser *parser, const uint8_t *buf, size_t len);
+/**
+ * \brief Gets the SWF from a parser
+ * \param[in] parser Parser to get an SWF from
+ * \return Pointer to SWF from parser
+ */
 SWF* swf_parser_get_swf(SWFParser *parser);
+/**
+ * \brief Sets the SWFErrorDesc from a parser
+ * \param[in] parser Parser to get an error from
+ * \return Pointer to SWFErrorDesc from parser
+ */
+SWFErrorDesc *swf_parser_get_error(SWFParser *parser);
+/**
+ * \brief Allocates a SWF
+ * \return Pointer if the SWF could be allocated; NULL otherwise.
+ */
 SWF* swf_init(void);
+/**
+ * \brief Free an SWF and all associated data
+ * \param[in] swf SWF to free
+ */
 void swf_free(SWF *swf);
+/**
+ * \brief Free an SWFTag's associated data. Does not call free() on the tag itself.
+ * \param[in] tag SWFtag to free
+ */
 void swf_tag_free(SWFTag *tag);
+/**
+ * \brief Free an SWFParser and all associated data.
+ * \param[in] parser SWFParser to free
+ */
 void swf_parser_free(SWFParser *parser);
+/**
+ * \brief Sets callbacks for an SWFParser.
+ * \param[in] parser    SWFParser to set callbacks for
+ * \param[in] callbacks SWFParserCallbacks to set
+ */
 void swf_parser_set_callbacks(SWFParser *parser, SWFParserCallbacks *callbacks);
+/**
+ * \brief Adds an SWFTag to an SWF
+ * \param[in] swf SWF to add a tag to
+ * \param[in] tag tag to add
+ * \return < 0 if something went wrong.
+ */
+SWFError swf_add_tag(SWF *swf, SWFTag *tag);
