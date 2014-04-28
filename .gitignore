@@ -2,9 +2,8 @@ autom4te.cache
 aclocal.m4
 Makefile
 Makefile.in
-/config*
-/libtool
-/m4
+config*
+libtool
 .deps
 *.pc
 stamp-h?
