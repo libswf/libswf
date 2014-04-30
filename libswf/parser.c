@@ -292,6 +292,8 @@ SWFError swf_parser_append(SWFParser *parser, const uint8_t *buf, size_t len){
         parser->zstrm.next_in = (uint8_t*)buf;
         for(;;){
             size_t avail_size = buf_shift(&parser->buf);
+            if(!avail_size && (ret = buf_grow_by(&parser->buf, parser->zstrm.avail_in * 4)))
+                return copy_error(parser, &parser->buf, ret);
             parser->zstrm.avail_out = avail_size;
             parser->zstrm.next_out = parser->buf.ptr + parser->buf.size;
             int z_ret = inflate(&parser->zstrm, Z_NO_FLUSH);
