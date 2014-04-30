@@ -261,7 +261,7 @@ SWFError swf_parser_append(SWFParser *parser, const uint8_t *buf, size_t len);
  */
 SWF* swf_parser_get_swf(SWFParser *parser);
 /**
- * \brief Sets the SWFErrorDesc from a parser
+ * \brief Gets the SWFErrorDesc from a parser
  * \param[in] parser Parser to get an error from
  * \return Pointer to SWFErrorDesc from parser
  */
@@ -272,17 +272,17 @@ SWFErrorDesc *swf_parser_get_error(SWFParser *parser);
  */
 SWF* swf_init(void);
 /**
- * \brief Free an SWF and all associated data
+ * \brief Frees an SWF and all associated data
  * \param[in] swf SWF to free
  */
 void swf_free(SWF *swf);
 /**
- * \brief Free an SWFTag's associated data. Does not call free() on the tag itself.
+ * \brief Frees an SWFTag's associated data. Does not call free() on the tag itself.
  * \param[in] tag SWFtag to free
  */
 void swf_tag_free(SWFTag *tag);
 /**
- * \brief Free an SWFParser and all associated data.
+ * \brief Frees an SWFParser and all associated data.
  * \param[in] parser SWFParser to free
  */
 void swf_parser_free(SWFParser *parser);
