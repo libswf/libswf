@@ -254,8 +254,9 @@ static SWFError parse_buf(SWFParser *parser){
     return ret;
 }
 
-SWFError swf_parser_append(SWFParser *parser, const uint8_t *buf, size_t len){
+SWFError swf_parser_append(SWFParser *parser, const void *buf_in, size_t len){
     SWF *swf = parser->swf;
+    const uint8_t *buf = buf_in;
     SWFError ret = SWF_OK;
     if(parser->state == PARSER_STARTED){
         // This is a really stupid setup to make sure we don't crash

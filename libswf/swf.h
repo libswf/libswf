@@ -253,7 +253,7 @@ SWFParser* swf_parser_init(void);
  * SWF_FINISHED if an END tag has been parsed.
  * SWFError < 0 if something went wrong.
  */
-SWFError swf_parser_append(SWFParser *parser, const uint8_t *buf, size_t len);
+SWFError swf_parser_append(SWFParser *parser, const void *buf, size_t len);
 /**
  * \brief Gets the SWF from a parser
  * \param[in] parser Parser to get an SWF from
