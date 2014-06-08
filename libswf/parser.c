@@ -304,7 +304,6 @@ SWFError swf_parser_append(SWFParser *parser, const void *buf_in, size_t len){
                 return parse_buf(parser);
             case Z_DATA_ERROR:
                 return set_error(parser, SWF_INVALID, "swf_parser_append: inflate() returned Z_DATA_ERROR");
-                return SWF_INVALID;
             case Z_STREAM_ERROR:
                 return set_error(parser, SWF_INTERNAL_ERROR, "swf_parser_append: inflate() returned Z_STREAM_ERROR");
             case Z_MEM_ERROR:
@@ -336,7 +335,7 @@ SWFError swf_parser_append(SWFParser *parser, const void *buf_in, size_t len){
             }
         }
     default:
-        return set_error(parser, SWF_UNIMPLEMENTED, "swf_parser_append: inflate() returned an unknown error");
+        return set_error(parser, SWF_UNKNOWN, "swf_parser_append: inflate() returned an unknown error");
     }
 }
 

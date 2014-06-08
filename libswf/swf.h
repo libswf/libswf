@@ -150,7 +150,7 @@ typedef enum {
  */
 typedef struct {
     SWFTagType type;    ///< Tag type
-    uint32_t size;      ///< Size of payload (NOT  the total size of the tag in-file)
+    uint32_t size;      ///< Size of payload (NOT the total size of the tag in-file)
     uint8_t *payload;   ///< Pointer to a buffer containing the contents of the tag
     uint16_t id;        ///< 16-bit ID pulled from tag; 0 indicates no ID. This
                         ///< value is not included in the payload.

@@ -66,7 +66,7 @@ int main(int argc, char *argv[]){
     };
     swf_parser_set_callbacks(parser, &callbacks);
     SWF *swf = swf_parser_get_swf(parser);
-    uint8_t data[1024 * 1024];
+    uint8_t data[4 * 1024];
     while(1){
         size_t read = fread(data, 1, sizeof(data), file);
         if(read == 0){
