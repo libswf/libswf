@@ -22,7 +22,7 @@
 #include "lzma/LzmaDec.h"
 #include "buffer.h"
 
-#ifdef HAVE_LIBZ
+#if HAVE_LIBZ
 #include <zlib.h>
 #endif
 
@@ -31,6 +31,7 @@
  */
 typedef enum {
     PARSER_STARTED,     ///< Reading uncompressed portion of header
+    PARSER_LZMA_HEADER, ///< Reading LZMA header
     PARSER_HEADER,      ///< Reading compressed portion of header
     PARSER_BODY,        ///< Reading body data
     PARSER_FINISHED,    ///< Read an END tag; finished
@@ -47,6 +48,8 @@ struct SWF_Parser {
     SWFParserCallbacks callbacks; ///< User-provided callbacks
     union {
         CLzmaDec lzma;      ///< LZMA decoder struct
+#if HAVE_LIBZ
         z_stream zstrm;     ///< Zlib decoder struct
+#endif
     };
 };

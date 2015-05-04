@@ -18,32 +18,35 @@
 
 #include "internal.h"
 #include <stdlib.h>
+static void *Alloc(void *p, size_t size) { return malloc(size); }
+static void Free(void *p, void *address) { free(address); }
+ISzAlloc allocator = { Alloc, Free };
 
-SWF *swf_init(void){
+SWF *swf_init(void) {
     return calloc(1, sizeof(SWF));
 }
 
-void swf_tag_free(SWFTag *tag){
-    if(!tag)
+void swf_tag_free(SWFTag *tag) {
+    if (!tag)
         return;
-    if(tag->payload){
+    if (tag->payload) {
         // TODO: Free any deeper data structures if necessary
         free(tag->payload);
         tag->payload = NULL;
     }
 }
 
-void swf_free(SWF *swf){
-    if(!swf)
+void swf_free(SWF *swf) {
+    if (!swf)
         return;
-    if(swf->tags){
-        for(int i = 0; i < swf->nb_tags; i++){
+    if (swf->tags) {
+        for (int i = 0; i < swf->nb_tags; i++) {
             swf_tag_free(swf->tags + i);
         }
         free(swf->tags);
         swf->tags = NULL;
     }
-    if(swf->JPEG_tables){
+    if (swf->JPEG_tables) {
         free(swf->JPEG_tables);
         swf->JPEG_tables = NULL;
     }

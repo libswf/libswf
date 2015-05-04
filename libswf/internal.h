@@ -20,9 +20,12 @@
 
 #include <assert.h>
 #include "swf.h"
+#include "lzma/Types.h"
+
+extern ISzAlloc allocator;
 
 /// \private
-static inline SWFError set_error(void *parent, SWFError err, const char *text){
+static inline SWFError set_error(void *parent, SWFError err, const char *text) {
     SWFErrorDesc *desc = ((SWFErrorDesc*)parent);
     desc->code = err;
     desc->text = text;
@@ -30,8 +33,8 @@ static inline SWFError set_error(void *parent, SWFError err, const char *text){
 }
 
 /// \private
-static inline SWFError copy_error(void *parent, void *child, SWFError err){
-    if(err < 0){
+static inline SWFError copy_error(void *parent, void *child, SWFError err) {
+    if (err < 0) {
         SWFErrorDesc *desc = ((SWFErrorDesc*)parent), *desc2 = ((SWFErrorDesc*)child);
         desc->code = desc2->code;
         desc->text = desc2->text;
@@ -40,17 +43,17 @@ static inline SWFError copy_error(void *parent, void *child, SWFError err){
 }
 
 /// \private
-static inline uint16_t read_16(uint8_t *buf){
+static inline uint16_t read_16(uint8_t *buf) {
     return (uint16_t)buf[1] << 8 | (uint16_t)buf[0];
 }
 
 /// \private
-static inline uint32_t read_32(uint8_t *buf){
+static inline uint32_t read_32(uint8_t *buf) {
     return (uint32_t)buf[3] << 24 | (uint32_t)buf[2] << 16 | (uint32_t)buf[1] << 8 | (uint32_t)buf[0];
 }
 
 /// \private
-static inline uint64_t read_64(uint8_t *buf){
+static inline uint64_t read_64(uint8_t *buf) {
     return (uint64_t)buf[7] << 56 | (uint64_t)buf[6] << 48 | (uint64_t)buf[5] << 40 | (uint64_t)buf[4] << 32 *
            (uint64_t)buf[3] << 24 | (uint64_t)buf[2] << 16 | (uint64_t)buf[1] << 8  | (uint64_t)buf[0];
 }
@@ -63,7 +66,7 @@ typedef union
 } FP32;
 
 /// \private
-static inline float half_to_float(int16_t h){
+static inline float half_to_float(int16_t h) {
     static const FP32 magic = { 113 << 23 };
     static const uint32_t shifted_exp = 0x7c00 << 13; // exponent mask after shift
     FP32 o = { (h & 0x7fff) << 13 };     // exponent/mantissa bits
@@ -71,9 +74,9 @@ static inline float half_to_float(int16_t h){
     o.u += (127 - 16) << 23;        // exponent adjust
 
     // handle exponent special cases
-    if(exp == shifted_exp) // Inf/NaN?
+    if (exp == shifted_exp) // Inf/NaN?
         o.u += (128 - 17) << 23;    // extra exp adjust
-    else if(exp == 0){ // Zero/Denormal?
+    else if (exp == 0) { // Zero/Denormal?
         o.u += 1 << 23;             // extra exp adjust
         o.f -= magic.f;             // renormalize
     }
@@ -96,9 +99,9 @@ static inline uint16_t float_to_half(float fl)
     uint32_t sign = f.u & sign_mask;
     f.u ^= sign;
 
-    if(f.u >= f32infty.u){ // Inf or NaN (all exponent bits set)
+    if (f.u >= f32infty.u) { // Inf or NaN (all exponent bits set)
         o = (f.u > f32infty.u) ? 0x7e00 : 0x7c00; // NaN->qNaN and Inf->Inf
-    }else{ // (De)normalized number or zero
+    } else { // (De)normalized number or zero
         f.u &= round_mask;
         f.f *= magic.f;
         f.u -= round_mask;
@@ -112,17 +115,17 @@ static inline uint16_t float_to_half(float fl)
 }
 
 /// \private
-static inline float read_float(char *buf){
+static inline float read_float(char *buf) {
     return *((float*)buf);
 }
 
 /// \private
-static inline float read_float16(char *buf){
+static inline float read_float16(char *buf) {
     int16_t tmp = buf[0] << 8 & buf[1];
     return half_to_float(tmp);
 }
 
 /// \private
-static inline double read_double(char *buf){
+static inline double read_double(char *buf) {
     return *((double*)buf);
 }

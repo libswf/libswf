@@ -97,6 +97,7 @@ typedef enum {
     SWF_DEFINE_BITS_LOSSLESS_2  = 36,
     SWF_DEFINE_EDIT_TEXT        = 37,
     SWF_DEFINE_SPRITE           = 39,
+    SWF_PRODUCT_INFO            = 41, // Undocumented; see http://wahlers.com.br/claus/blog/undocumented-swf-tags-written-by-mxmlc/
     SWF_FRAME_LABEL             = 43,
     SWF_SOUND_STREAM_HEAD_2     = 45,
     SWF_DEFINE_MORPH_SHAPE      = 46,
