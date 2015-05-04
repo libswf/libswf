@@ -1,5 +1,11 @@
 autom4te.cache
 aclocal.m4
+compile
+depcomp
+install-sh
+ltmain.sh
+missing
+run_configure*
 Makefile
 Makefile.in
 config*
@@ -14,4 +20,10 @@ stamp-h?
 .libs
 *.lo
 *.la
-
+m4/libtool.m4
+m4/ltoptions.m4
+m4/ltsugar.m4
+m4/ltversion.m4
+m4/lt~obsolete.m4
+test/test
+*.swf
